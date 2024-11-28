@@ -36,54 +36,25 @@ def run_siemens_analysis(driver):
         correo = row['Correo']
         contrasena = row["Clave Nueva De Acceso"]
         try:
-            # Localizar los elementos
-            email_field = WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.ID, "ContentPlaceHolder1_TextSiemensLogin"))
-            )
-            password_field = driver.find_element(By.ID, "ContentPlaceHolder1_TextPassword")
-            login_button = driver.find_element(By.ID, "ContentPlaceHolder1_LoginUserNamePasswordButton")
+            # Login del usuario
+            if not login(driver, correo, contrasena):
+                results.append({"Correo": correo, "Estado": "Login fallido"})
+                continue
 
-            # Ingresar credenciales y hacer clic en "Login"
-            email_field.clear()
-            password_field.clear()
-            email_field.send_keys(correo)
-            password_field.send_keys(contrasena)
-            login_button.click()
+            # Navegar a la sección 'Me'
+            if not navigate_to_me(driver):
+                results.append({"Correo": correo, "Estado": "Falló la navegación a 'Me'"})
+                continue
 
-            # Esperar redirección o validación
-            try:
-                WebDriverWait(driver, 15).until(
-                    EC.url_changes(siemens_link)
-                )
-                # Si la redirección fue exitosa, proceder con la extracción de datos
-                print(f"Ingreso exitoso para {correo}. Procediendo con la extracción de datos.")
-                user_data = extract_user_data(driver)  # Implementar esta función según los datos necesarios
-                results.append({"Correo": correo, "Estado": "Login exitoso", "Datos": user_data})
+            # Aquí continuaríamos con la extracción de datos (In Progress y Completed)
 
-                # Esperar confirmación manual antes de continuar con el siguiente usuario
-                input(f"Usuario {correo} procesado. Presiona ENTER para continuar con el siguiente usuario...")
+            results.append({"Correo": correo, "Estado": "Proceso completado correctamente"})
 
-            except TimeoutException:
-                # Detectar error de contraseña incorrecta o formulario especial
-                try:
-                    error_message = WebDriverWait(driver, 5).until(
-                        EC.presence_of_element_located((By.CLASS_NAME, "error-message"))  # Ajustar según el selector real
-                    )
-                    print(f"Contraseña incorrecta para {correo}: {error_message.text}")
-                    results.append({"Correo": correo, "Estado": "Contraseña incorrecta. Actualizar."})
-                except TimeoutException:
-                    print(f"Timeout sin redirección para {correo}.")
-                    results.append({"Correo": correo, "Estado": "Timeout sin redirección"})
+        except Exception as e:
+            print(f"Error inesperado con {correo}: {e}")
+            results.append({"Correo": correo, "Estado": f"Error inesperado: {e}"})
 
-        except NoSuchElementException as e:
-            print(f"Error con {correo}: Elemento no encontrado - {e}")
-            results.append({"Correo": correo, "Estado": f"Elemento no encontrado - {e}"})
-
-        except WebDriverException as e:
-            print(f"Error general del navegador con {correo}: {e}")
-            results.append({"Correo": correo, "Estado": f"Error del navegador - {e}"})
-
-        # Pausa opcional para asegurar que todo se haya completado
+        # Pausa opcional entre intentos
         time.sleep(5)
 
     # Guardar los resultados en un archivo Excel
@@ -92,24 +63,64 @@ def run_siemens_analysis(driver):
     print(f"Resultados guardados en {output_path}")
 
 
-def extract_user_data(driver):
+def login(driver, email, password):
     """
-    Extrae los datos del usuario después de un login exitoso.
+    Realiza el inicio de sesión en la plataforma.
+
+    Args:
+        driver (WebDriver): Instancia del navegador.
+        email (str): Correo del usuario.
+        password (str): Contraseña del usuario.
+
+    Returns:
+        bool: True si el login fue exitoso, False de lo contrario.
+    """
+    try:
+        # Localizar los elementos
+        driver.find_element(By.ID, "ContentPlaceHolder1_TextSiemensLogin").send_keys(email)
+        driver.find_element(By.ID, "ContentPlaceHolder1_TextPassword").send_keys(password)
+        driver.find_element(By.ID, "ContentPlaceHolder1_LoginUserNamePasswordButton").click()
+
+        # Esperar redirección o mensaje de error
+        time.sleep(5)
+        error_message = driver.find_elements(By.ID, "ContentPlaceHolder1_MessageRepeaterLogin_MessageItemLogin_0")
+        if error_message:
+            print(f"Error de login para {email}: {error_message[0].text}")
+            return False
+
+        print(f"Login exitoso para {email}")
+        return True
+
+    except Exception as e:
+        print(f"Error durante el login para {email}: {e}")
+        return False
+
+
+def navigate_to_me(driver):
+    """
+    Navega al menú y selecciona la opción 'Me'.
 
     Args:
         driver (WebDriver): Instancia del navegador.
 
     Returns:
-        dict: Datos del usuario extraídos.
+        bool: True si la navegación fue exitosa, False de lo contrario.
     """
     try:
-        # Aquí debes implementar la lógica para extraer datos específicos del usuario.
-        # Por ejemplo, cursos completados, progreso, etc.
-        user_data = {
-            "Cursos completados": 5,  # Reemplazar con lógica real
-            "Progreso total": "80%",  # Reemplazar con lógica real
-        }
-        return user_data
-    except Exception as e:
-        print(f"Error al extraer datos del usuario: {e}")
-        return {"Cursos completados": None, "Progreso total": None}
+        # Hacer clic en el menú (tres líneas)
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.ID, "hamburger-trigger"))
+        ).click()
+        print("Menú abierto.")
+
+        # Seleccionar la opción 'Me'
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.ID, "framework-tile"))
+        ).click()
+        print("Navegación exitosa a la sección 'Me'.")
+        return True
+
+    except TimeoutException:
+        print("Error: No se pudo navegar a la sección 'Me'.")
+        return False
+
