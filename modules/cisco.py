@@ -44,14 +44,15 @@ def run_cisco_analysis(driver):
 
             # Aquí puedes agregar pasos adicionales para extraer información
             print(f"Usuario {email} procesado exitosamente.")
-
             results.append({"Correo": email, "Estado": "Inicio de sesión exitoso y acceso a 'My Learning'"})
 
         except Exception as e:
             print(f"Error inesperado con {email}: {e}")
             results.append({"Correo": email, "Estado": f"Error inesperado: {e}"})
 
-       
+        # Reiniciar la página antes de pasar al siguiente usuario
+        driver.get(cisco_url)
+        time.sleep(5)
 
     # Guardar los resultados en un archivo Excel
     results_df = pd.DataFrame(results)
@@ -73,7 +74,7 @@ def login_cisco(driver, email, password):
     """
     try:
         # Ingresar correo electrónico
-        email_field = WebDriverWait(driver, 10).until(
+        email_field = WebDriverWait(driver, 15).until(
             EC.presence_of_element_located((By.ID, "input28"))
         )
         email_field.clear()
@@ -81,15 +82,15 @@ def login_cisco(driver, email, password):
 
         # Hacer clic en "Siguiente"
         next_button = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.XPATH, "//input[@value='Siguiente']"))
+            EC.element_to_be_clickable((By.XPATH, "//input[@value='Siguiente']"))
         )
         next_button.click()
 
         # Esperar a que aparezca el campo de contraseña
-        password_field = WebDriverWait(driver, 10).until(
+        password_field = WebDriverWait(driver, 15).until(
             EC.presence_of_element_located((By.NAME, "credentials.passcode"))
         )
-        time.sleep(2)
+        time.sleep(2)  # Tiempo de espera opcional
 
         # Ingresar contraseña
         password_field.clear()
@@ -97,12 +98,12 @@ def login_cisco(driver, email, password):
 
         # Hacer clic en "Verificar"
         verify_button = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.XPATH, "//input[@value='Verificar']"))
+            EC.element_to_be_clickable((By.XPATH, "//input[@value='Verificar']"))
         )
         verify_button.click()
 
         # Esperar redirección o validación
-        WebDriverWait(driver, 10).until(EC.url_changes(driver.current_url))
+        WebDriverWait(driver, 15).until(EC.url_changes(driver.current_url))
 
         print(f"Inicio de sesión exitoso para {email}")
         return True
@@ -124,7 +125,7 @@ def handle_finish_logging_in(driver):
     """
     try:
         finish_link = WebDriverWait(driver, 15).until(
-            EC.presence_of_element_located((By.XPATH, "//a[contains(@class, 'button') and contains(@class, 'primary') and contains(@class, 'wide') and contains(@class, 'mt16')]"))
+            EC.presence_of_element_located((By.XPATH, "//a[contains(text(), 'Finish Logging In')]"))
         )
         finish_link.click()
         print("Se hizo clic en 'Finish Logging In'. Esperando la redirección...")
@@ -135,6 +136,8 @@ def handle_finish_logging_in(driver):
         print("Inicio de sesión completado exitosamente.")
     except TimeoutException:
         print("No se encontró el botón 'Finish Logging In'.")
+    except Exception as e:
+        print(f"Error inesperado al manejar 'Finish Logging In': {e}")
 
 
 def navigate_to_my_learning(driver):
@@ -149,15 +152,15 @@ def navigate_to_my_learning(driver):
     """
     try:
         # Hacer clic en el botón del menú hamburguesa
-        menu_button = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.XPATH, "//div[contains(@class, 'globalmenu_wrapper active-class-toggle active')]"))
+        menu_button = WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located((By.XPATH, "//div[contains(@class, 'globalmenu_wrapper')]"))
         )
         menu_button.click()
         print("Menú hamburguesa abierto.")
 
         # Hacer clic en 'My Learning'
-        my_learning_option = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.XPATH, "//a[text()='My Learning']"))
+        my_learning_option = WebDriverWait(driver, 30).until(
+            EC.presence_of_element_located((By.XPATH, "//a[contains(text(), 'My Learning')]"))
         )
         my_learning_option.click()
         print("Se hizo clic en 'My Learning'.")
