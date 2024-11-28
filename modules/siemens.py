@@ -5,6 +5,7 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException,
 import pandas as pd
 import time
 
+
 def run_siemens_analysis(driver):
     """
     Ejecuta el análisis para la plataforma Siemens, procesando un usuario a la vez.
@@ -17,17 +18,13 @@ def run_siemens_analysis(driver):
     driver.get(siemens_link)
 
     # Esperar a que la página cargue
-    try:
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.ID, "ContentPlaceHolder1_TextSiemensLogin"))
-        )
-    except TimeoutException:
+    if not wait_for_element(driver, By.ID, "ContentPlaceHolder1_TextSiemensLogin", 10):
         print("La página de inicio de sesión no cargó correctamente.")
         return
 
     # Leer datos del Excel
     excel_path = r"D:\OneDrive - Tunning Ingenieria SPA\Escritorio\proyecto de automatiacion\Excel datos\Datos P&T Version Actualizada.xlsx"
-    output_path = r"D:\OneDrive - Tunning Ingenieria SPA\Escritorio\proyecto de automatiacion\data\results\platforms.xlsx"
+    output_path = r"./data/results/platforms.xlsx"
     data = pd.read_excel(excel_path, sheet_name="Plan Capacitacion Siemens", header=1)
 
     results = []
@@ -46,21 +43,25 @@ def run_siemens_analysis(driver):
                 results.append({"Correo": correo, "Estado": "Falló la navegación a 'Me'"})
                 continue
 
-            # Aquí continuaríamos con la extracción de datos (In Progress y Completed)
+            # Extraer los cursos en progreso y completados
+            user_courses = extract_courses(driver)
+            results.append({
+                "Correo": correo,
+                "Estado": "Proceso completado",
+                "Cursos en Progreso": user_courses.get("In Progress", []),
+                "Cursos Completados": user_courses.get("Completed", [])
+            })
 
-            results.append({"Correo": correo, "Estado": "Proceso completado correctamente"})
-
+            print(f"Usuario {correo} procesado exitosamente.")
         except Exception as e:
             print(f"Error inesperado con {correo}: {e}")
             results.append({"Correo": correo, "Estado": f"Error inesperado: {e}"})
 
-        # Pausa opcional entre intentos
+        # Pausa opcional entre usuarios
         time.sleep(5)
 
     # Guardar los resultados en un archivo Excel
-    results_df = pd.DataFrame(results)
-    results_df.to_excel(output_path, index=False)
-    print(f"Resultados guardados en {output_path}")
+    save_to_excel(results, output_path)
 
 
 def login(driver, email, password):
@@ -76,21 +77,17 @@ def login(driver, email, password):
         bool: True si el login fue exitoso, False de lo contrario.
     """
     try:
-        # Localizar los elementos
         driver.find_element(By.ID, "ContentPlaceHolder1_TextSiemensLogin").send_keys(email)
         driver.find_element(By.ID, "ContentPlaceHolder1_TextPassword").send_keys(password)
         driver.find_element(By.ID, "ContentPlaceHolder1_LoginUserNamePasswordButton").click()
 
-        # Esperar redirección o mensaje de error
-        time.sleep(5)
-        error_message = driver.find_elements(By.ID, "ContentPlaceHolder1_MessageRepeaterLogin_MessageItemLogin_0")
-        if error_message:
-            print(f"Error de login para {email}: {error_message[0].text}")
+        # Verificar errores de login
+        if wait_for_element(driver, By.ID, "ContentPlaceHolder1_MessageRepeaterLogin_MessageItemLogin_0", 5):
+            print(f"Error de login para {email}")
             return False
 
         print(f"Login exitoso para {email}")
         return True
-
     except Exception as e:
         print(f"Error durante el login para {email}: {e}")
         return False
@@ -107,20 +104,112 @@ def navigate_to_me(driver):
         bool: True si la navegación fue exitosa, False de lo contrario.
     """
     try:
-        # Hacer clic en el menú (tres líneas)
         WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.ID, "hamburger-trigger"))
         ).click()
-        print("Menú abierto.")
+        print("Menú hamburguesa abierto.")
 
-        # Seleccionar la opción 'Me'
         WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.ID, "framework-tile"))
+            EC.presence_of_element_located((By.ID, "framework-tilenav-me-link"))
         ).click()
         print("Navegación exitosa a la sección 'Me'.")
         return True
-
     except TimeoutException:
         print("Error: No se pudo navegar a la sección 'Me'.")
         return False
 
+
+def extract_courses(driver):
+    """
+    Extrae los cursos en progreso y completados.
+
+    Args:
+        driver (WebDriver): Instancia del navegador.
+
+    Returns:
+        dict: Diccionario con los cursos en progreso y completados.
+    """
+    courses = {"In Progress": [], "Completed": []}
+
+    try:
+        # Extraer cursos "In Progress" (cargados por defecto)
+        print("Extrayendo cursos en progreso...")
+        courses["In Progress"] = extract_course_details(driver)
+
+        # Cambiar a la sección "Completed"
+        print("Cambiando a la sección de cursos completados...")
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.XPATH, "//span[text()='Completed']"))
+        ).click()
+
+        # Extraer cursos "Completed"
+        print("Extrayendo cursos completados...")
+        courses["Completed"] = extract_course_details(driver)
+    except Exception as e:
+        print(f"Error al extraer cursos: {e}")
+
+    return courses
+
+
+def extract_course_details(driver):
+    """
+    Extrae detalles de los cursos.
+
+    Args:
+        driver (WebDriver): Instancia del navegador.
+
+    Returns:
+        list: Lista de diccionarios con los detalles de cada curso.
+    """
+    courses = []
+    try:
+        course_elements = WebDriverWait(driver, 10).until(
+            EC.presence_of_all_elements_located((By.CLASS_NAME,"goalTitleListGoals loc-le-title"))
+        )
+
+        for course in course_elements:
+            try:
+                name = course.text.strip()
+                link = course.get_attribute("href")
+                courses.append({"Nombre": name, "Enlace": link})
+            except NoSuchElementException:
+                continue
+    except TimeoutException:
+        print("No se encontraron cursos en esta sección.")
+
+    return courses
+
+
+def wait_for_element(driver, by, identifier, timeout):
+    """
+    Espera a que un elemento esté presente.
+
+    Args:
+        driver (WebDriver): Instancia del navegador.
+        by (By): Tipo de localizador (e.g., By.ID, By.XPATH).
+        identifier (str): Identificador del elemento.
+        timeout (int): Tiempo máximo de espera.
+
+    Returns:
+        WebElement: El elemento encontrado, o None si no se encuentra.
+    """
+    try:
+        return WebDriverWait(driver, timeout).until(EC.presence_of_element_located((by, identifier)))
+    except TimeoutException:
+        return None
+
+
+def save_to_excel(data, file_path):
+    """
+    Guarda los resultados en un archivo Excel.
+
+    Args:
+        data (list): Lista de diccionarios con los datos.
+        file_path (str): Ruta del archivo Excel.
+    """
+    try:
+        results_df = pd.DataFrame(data)
+        results_df.to_excel(file_path, index=False)
+        print(f"Resultados guardados en {file_path}")
+    except Exception as e:
+        print(f"Error al guardar los resultados: {e}")
