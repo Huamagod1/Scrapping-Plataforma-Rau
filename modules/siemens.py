@@ -153,7 +153,7 @@ def extract_courses(driver):
 
 def extract_course_details(driver):
     """
-    Extrae detalles de los cursos.
+    Extrae detalles de los cursos de la sección actual.
 
     Args:
         driver (WebDriver): Instancia del navegador.
@@ -163,21 +163,39 @@ def extract_course_details(driver):
     """
     courses = []
     try:
-        course_elements = WebDriverWait(driver, 10).until(
-            EC.presence_of_all_elements_located((By.CLASS_NAME,"goalTitleListGoals loc-le-title"))
+        print("Esperando que carguen los elementos de los cursos...")
+        # Esperar a que los elementos estén presentes
+        course_elements = WebDriverWait(driver, 15).until(
+            EC.presence_of_all_elements_located((By.CLASS_NAME, "goalTitleListGoals"))
         )
 
-        for course in course_elements:
-            try:
-                name = course.text.strip()
-                link = course.get_attribute("href")
-                courses.append({"Nombre": name, "Enlace": link})
-            except NoSuchElementException:
-                continue
-    except TimeoutException:
-        print("No se encontraron cursos en esta sección.")
+        print(f"Se encontraron {len(course_elements)} cursos en esta sección.")
 
+        # Iterar sobre cada curso y extraer detalles
+        for index, course in enumerate(course_elements, start=1):
+            try:
+                # Nombre del curso
+                name = course.text.strip()
+                # Enlace al detalle del curso
+                link = course.get_attribute("href")
+
+                # Debug: Imprimir los detalles del curso
+                print(f"Curso {index}: Nombre: {name}, Enlace: {link}")
+
+                # Agregar a la lista de cursos
+                courses.append({"Nombre": name, "Enlace": link})
+            except Exception as e:
+                print(f"Error al procesar el curso {index}: {e}")
+                continue
+
+    except TimeoutException:
+        print("No se encontraron cursos en esta sección o el tiempo de espera expiró.")
+    except Exception as e:
+        print(f"Error inesperado durante la extracción de cursos: {e}")
+
+    # Devolver la lista de cursos
     return courses
+
 
 
 def wait_for_element(driver, by, identifier, timeout):
