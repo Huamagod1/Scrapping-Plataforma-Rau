@@ -1,0 +1,8 @@
+#Ignorando la carpeta del entorno virtual
+
+venv/
+__pycache__/
+*.pyc
+*.log
+data/
+config.json
