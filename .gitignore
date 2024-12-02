@@ -6,3 +6,4 @@ __pycache__/
 *.log
 data/
 config.json
+chromedriver-win64/
