@@ -1,14 +1,14 @@
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.common.exceptions import TimeoutException
 import time
 import pandas as pd
 
 def run_cisco_analysis(driver):
     """
     Ejecuta el análisis para la plataforma Cisco, procesando un usuario a la vez.
-
+    
     Args:
         driver (WebDriver): Instancia del navegador.
     """
@@ -22,15 +22,28 @@ def run_cisco_analysis(driver):
 
     # Ruta del archivo de resultados
     output_path = r"D:\OneDrive - Tunning Ingenieria SPA\Escritorio\proyecto de automatiacion\data\results\platforms.xlsx"
-    # Limpiar contenido del archivo de resultados antes de empezar
-    clean_results_excel(output_path)
-    
+    clean_results_excel(output_path)  # Limpiar resultados anteriores
+
     results = []
 
     for _, row in data.iterrows():
         email = row['Correo']
         password = row['Clave Nueva De Acceso']
+        estado_cuenta = row['Estado Cuenta']
 
+        # Verificar estado de la cuenta antes de continuar
+        if estado_cuenta == "Sin acceso":
+            print(f"El usuario {email} tiene el estado 'Sin acceso'. Se omite el procesamiento.")
+            results.append({"Correo": email, "Estado": "Sin acceso, no procesado"})
+            continue
+        elif estado_cuenta == "Cambiar Contraseña":
+            print(f"El usuario {email} requiere cambiar contraseña. Intentando inicio de sesión...")
+            if not login_cisco(driver, email, password):
+                print(f"El usuario {email} no pudo iniciar sesión. Notificar cambio de contraseña.")
+                results.append({"Correo": email, "Estado": "No pudo iniciar sesión, cambiar contraseña"})
+                continue  # Pasar al siguiente usuario
+
+        # Procesar cuentas habilitadas o con contraseñas funcionales
         try:
             # Login del usuario
             if not login_cisco(driver, email, password):
@@ -45,12 +58,12 @@ def run_cisco_analysis(driver):
                 results.append({"Correo": email, "Estado": "Falló al acceder a 'My Learning'."})
                 continue
 
-            # **Agregar extracción de cursos**
+            # Extracción de cursos
             user_courses = extract_courses(driver)
             results.append({
                 "Correo": email,
                 "Estado": "Proceso completado",
-                "Cursos en Progreso": user_courses.get("In Progress", []),
+                "Cursos en Progreso": user_courses.get("In Progress", ["No tiene cursos en progreso"]),
                 "Cursos Completados": user_courses.get("Completed", ["No tiene cursos completados"])
             })
             print(f"Usuario {email} procesado exitosamente.")
@@ -64,11 +77,14 @@ def run_cisco_analysis(driver):
             results.append({"Correo": email, "Estado": f"Error inesperado: {e}"})
 
         finally:
-            # Cerrar el navegador antes de pasar al siguiente usuario
+            # Cerrar y reiniciar navegador para el siguiente usuario
             print(f"Cerrando navegador para el usuario {email}...")
             driver.quit()
             time.sleep(2)
-            
+            from selenium import webdriver
+            driver = webdriver.Edge()  # Cambia según tu controlador
+            driver.get(cisco_url)
+
     # Guardar los resultados en un archivo Excel
     try:
         results_df = pd.DataFrame(results)
@@ -77,6 +93,9 @@ def run_cisco_analysis(driver):
     except Exception as e:
         print(f"Error al guardar el archivo de resultados: {e}")
 
+    print("Todos los usuarios han sido procesados. Finalizando ejecución.")
+    driver.quit()
+    
 def login_cisco(driver, email, password):
     """
     Realiza el inicio de sesión en la plataforma Cisco.
@@ -203,24 +222,45 @@ def extract_courses(driver):
     try:
         # Extraer cursos en progreso
         print("Extrayendo cursos en progreso...")
-        courses["In Progress"] = extract_course_names(driver, "//h3[contains(@class, 'visually-hidden')]")
+        in_progress_courses = extract_course_names(driver, "//h3[contains(@class, 'visually-hidden')]")
+        if not in_progress_courses:
+            print("El usuario no tiene cursos en progreso.")
+            courses["In Progress"] = ["No tiene cursos en progreso."]
+        else:
+            courses["In Progress"] = in_progress_courses
 
-        # Cambiar a la pestaña "Completed Learning"
+        # Verificar si la pestaña "Completed Learning" está disponible
         print("Cambiando a la pestaña de cursos completados...")
-        completed_tab = WebDriverWait(driver, 15).until(
-            EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Completed Learning')]"))
-        )
-        completed_tab.click()
+        try:
+            completed_tab = WebDriverWait(driver, 15).until(
+                EC.element_to_be_clickable((By.XPATH, "//span[contains(text(), 'Completed Learning')]"))
+            )
+            completed_tab.click()
+        except TimeoutException:
+            print("No se encontró la pestaña de cursos completados.")
+            courses["Completed"] = ["No tiene cursos completados."]
+            return courses
 
-        # Esperar que cargue la sección de cursos completados
-        WebDriverWait(driver, 15).until(
-            EC.presence_of_element_located((By.XPATH, "//h1[contains(@class, 'ltui-learningitemlwc_carouselviewtemplate')]"))
-        )
-        print("Sección de cursos completados cargada.")
+        # Verificar si hay cursos completados en la sección
+        print("Verificando la sección de cursos completados...")
+        try:
+            WebDriverWait(driver, 15).until(
+                EC.presence_of_element_located((By.XPATH, "//h1[contains(@class, 'ltui-learningitemlwc_carouselviewtemplate')]"))
+            )
+            print("Sección de cursos completados cargada.")
+        except TimeoutException:
+            print("El usuario no tiene cursos completados.")
+            courses["Completed"] = ["No tiene cursos completados."]
+            return courses
 
         # Extraer cursos completados
         print("Extrayendo cursos completados...")
-        courses["Completed"] = extract_course_names(driver, "//h1[contains(@class, 'ltui-learningitemlwc_carouselviewtemplate')]")
+        completed_courses = extract_course_names(driver, "//h1[contains(@class, 'ltui-learningitemlwc_carouselviewtemplate')]")
+        if not completed_courses:
+            print("El usuario no tiene cursos completados.")
+            courses["Completed"] = ["No tiene cursos completados."]
+        else:
+            courses["Completed"] = completed_courses
 
     except TimeoutException:
         print("Timeout al intentar extraer cursos o cambiar a la pestaña 'Completed Learning'.")
@@ -254,7 +294,10 @@ def extract_course_names(driver, xpath_selector):
             course_name = course.text.strip()
             if course_name:  # Filtrar entradas vacías
                 course_names.append(course_name)
-        print(f"{len(course_names)} cursos extraídos exitosamente.")
+        if not course_names:
+            print("No se encontraron cursos en la sección actual.")
+        else:
+            print(f"{len(course_names)} cursos extraídos exitosamente.")
     except TimeoutException:
         print(f"No se encontraron cursos con el selector {xpath_selector}.")
     except Exception as e:
