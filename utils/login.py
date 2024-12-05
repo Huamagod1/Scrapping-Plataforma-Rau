@@ -10,7 +10,7 @@ def login(driver, config):
     # Navega a la página de inicio de sesión
     driver.get(config["url"])
 
-        # Esperar a que la página esté completamente cargada
+    # Esperar a que la página esté completamente cargada
     WebDriverWait(driver, 20).until(
         lambda d: d.execute_script("return document.readyState") == "complete"
     )
