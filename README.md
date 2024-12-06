@@ -65,3 +65,5 @@ Modularidad y escalabilidad:
 Diseña tu código para que puedas agregar más plataformas o tipos de datos sin reescribir todo.
 
 
+
+
