@@ -83,7 +83,7 @@ def filtro_tipo_formacion(driver):
         )
         print("La pagina termino de cargar despues de seleccionar el filtro") 
 
-        time.sleep(5)
+        time.sleep(4)
 
 def filtro_estado_formacion(driver):
      #Colocar filtro por estado de formacion
@@ -99,7 +99,7 @@ def filtro_estado_formacion(driver):
         filtro_estado_formacion_todos.click()
         print("Se seleciona la opcion todos en el filtro formacion")
 
-        time.sleep(5)
+        time.sleep(4)
 
 def mostrar_expediente(driver):
         
@@ -172,7 +172,7 @@ def volver_a_expediente(driver):
 
      try: 
             driver.back()
-            time.sleep(5)
+            time.sleep(4)
             print("Se devuelve a la pagina anterior.")
           # Esperar que la página cargue completamente
             WebDriverWait(driver, 15).until(
@@ -204,6 +204,12 @@ def extraccion_itinerarios_totales_estados(driver):
         #Patron nombres Curso online: _bjbi1b_k_f, _bjbi2b_k_f, 
         #Patron para los estados de los itinerarios: _bjbi0k_kbb, _bjbi1k_kbb, _bjbi2k_kbb
 
+        #Despues de la actualizacion de la pagina de RAU:
+        #Patron nombres de los itinerarios: _bjbi0k_k__f, "k_k__f"
+        #Patron id de los estados de los itinerarios:  _bjbi0k_k_bg, "k_k_bg"
+
+
+
         for contenedor in contenedores:
             try:
                 
@@ -211,8 +217,8 @@ def extraccion_itinerarios_totales_estados(driver):
                 print("ID contenedor encontrado: "+  contenedor_id)
 
                 # Se construyen los IDS A BUSCAR
-                id_nombre = contenedor_id.replace("k_e", "k_k_f")
-                id_estado = contenedor_id.replace("k_e", "k_kbb")
+                id_nombre = contenedor_id.replace("k_e", "k_k__f")
+                id_estado = contenedor_id.replace("k_e", "k_k_bg")
 
                 #Se busca el nombre del itinerario
                 nombre_elemento = driver.find_element(By.ID, id_nombre)
@@ -250,3 +256,119 @@ def extraccion_itinerarios_totales_estados(driver):
         #df.to_excel("itinerarios_formativos.xlsx", index=False)
         #print("Datos guardados en 'itinerarios_formativos.xlsx'.")
 
+def extraccion_datos(driver, nombre_itinerario):
+    print("Se empiezan a extraer los datos")
+
+    """
+        Primero siempre tenemos que hacer click a la vista general del curso. Esto se hace haciendo click en el nombre del itinerario una vez dentro.
+
+
+     Tenemos que identificar la cantidad de modulos que hay por itinerario y de estos realizar el calculo del porcentaje
+     si en la pagina no hay algun porcentaje que indique el avance del especialista.
+
+    Patron del id de los modulos de un curso: _zl0o_c. De otro itinerario y el primero modulo: _zl0o_c, _zl1o_c
+
+    Antes de acceder tenemos un id igual:  esto esta en un div _zl0o_w
+
+    Patron del dato "Terminado" span: _zl0obc, _zl1obc
+    Patron del dato "Min. Obligatorio" span: _zl0obh ,_zl1obh
+    Patro del dato "Cursos totales" span: _zl0obm, _zl1obm
+
+
+    Curso con porcentaje: 
+
+    Para los cursos con el porcentaje, necesito encotrar un patron para que se extraiga el dato:
+    Patron del curso "Customer Training: Studio 5000 Logix Designer Level 1: ControlLogix System Fundamentals (CCP146)"
+
+
+     """
+    vista_gnral_itinerario = WebDriverWait(driver,15).until(
+         EC.element_to_be_clickable((By.ID,"_ra_w"))
+    )
+
+    vista_gnral_itinerario.click()
+    print(f"Se hizo clic en el itinerario '{nombre_itinerario}' para acceder a la vista general.")
+
+     # Espera a que la página termine de cargar
+    WebDriverWait(driver, 15).until(
+            lambda d: d.execute_script("return document.readyState") == "complete"
+    )
+    print("La vista general de los cursos/módulos cargó completamente.")
+    
+
+
+
+    #Se tiene que identificar si el itinerario trae el porcentaje o no
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    #Ejemplo del curso "Customer Training: Studio 5000 Logix Designer Level 1: ControlLogix System Fundamentals (CCP146)"
+
+"""    
+     
+     <div ct="PaddingContainer" id="_oa" class="cso-cont-pad10 ">
+
+
+<div ct="HBoxLayout" id="_oc" class="ctl-inline  csod-layout-center " style="width:100%;">
+ <div id="_oe" class="csod-circlegauge pie-chart pie-number easypiechart" 
+data-opt="{&quot;size&quot;:&quot;120&quot;,&quot;linewidth&quot;:&quot;15&quot;,&quot;colormode&quot;:&quot;corp&quot;,&quot;animate&quot;:&quot;True&quot;}" rel="tooltip" title="4" style="height: 120px;">
+ <div class="percentage" data-percent="4" style="height: 120px; font-size: 36px; width: 120px; line-height: 120px !important;" dir="ltr" tabindex="-1">
+     <span aria-hidden="true">4</span><label aria-hidden="true">%</label>
+     <label for="_oe" class="hidden-element"> employee evaluation 4 complete</label>
+ <canvas height="132" width="132" style="height: 120px; width: 120px;"></canvas></div>
+<div class="pie-text csod-ellipsis"></div>     
+<span class="chart-corp-step1 cso-hidden"></span>
+<span class="chart-corp-step2 cso-hidden"></span>
+<span class="chart-corp-step3 cso-hidden"></span>
+</div>
+    
+    <div id="_of" title="" oncopy="return true" oncut="return true" onpaste="return true" class="  text-normal  cso-rtf-view cso-text-medium " data-ctl-opt="" aria-label="CURRICULUM PROGRESS">CURRICULUM PROGRESS </div>
+</div>
+</div>
+
+"""
+#Ejemplo del curso: Level 2: Logix On Demand
+
+"""
+
+<div id="_oe" class="csod-circlegauge pie-chart pie-number easypiechart" 
+data-opt="{&quot;size&quot;:&quot;120&quot;,&quot;linewidth&quot;:&quot;15&quot;,&quot;colormode&quot;:&quot;corp&quot;,&quot;animate&quot;:&quot;True&quot;}" rel="tooltip" title="0" style="height: 120px;">
+ <div class="percentage" data-percent="0" style="height: 120px; font-size: 36px; width: 120px; line-height: 120px !important;" dir="ltr" tabindex="-1">
+     <span aria-hidden="true">0</span><label aria-hidden="true">%</label>
+     <label for="_oe" class="hidden-element"> employee evaluation 0 complete</label>
+ <canvas height="120" width="120"></canvas></div>
+<div class="pie-text csod-ellipsis"></div>     <span class="chart-corp-step1 cso-hidden"></span>
+     <span class="chart-corp-step2 cso-hidden"></span>
+     <span class="chart-corp-step3 cso-hidden"></span>
+</div>
+
+"""
