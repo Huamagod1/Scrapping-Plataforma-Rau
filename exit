@@ -1,0 +1,43 @@
+[33mcommit 9ff7f0d136f3efe8d09be045bbffd2465498e4c0[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32msiemens[m[33m, [m[1;31morigin/siemens[m[33m)[m
+Author: Felipe Quinteros <fquinteros@TUNNING.CL>
+Date:   Thu Nov 28 15:13:09 2024 -0300
+
+    mejora2
+
+[33mcommit 050a6aa83489bc4b14f3cbc74ba007a09eea0084[m[33m ([m[1;32mfeature-extract-coruses[m[33m)[m
+Author: Felipe Quinteros <fquinteros@TUNNING.CL>
+Date:   Thu Nov 28 15:04:58 2024 -0300
+
+    faltaAgregarCargaDeDatosYQueAbraDeNuevoConOtroUsuario
+
+[33mcommit 7a5fab1793961c1a4e4725f46b27bed3eb7d7cd8[m
+Merge: 20c9c4f b08b829
+Author: Felipe Quinteros <fquinteros@TUNNING.CL>
+Date:   Thu Nov 28 08:54:12 2024 -0300
+
+    erge branch 'master' into siemens
+    ignored# the commit.
+
+[33mcommit 20c9c4f7857e5292deed59af2b4bd0cedff9956b[m
+Author: Felipe Quinteros <fquinteros@TUNNING.CL>
+Date:   Thu Nov 28 08:49:47 2024 -0300
+
+    mejora
+
+[33mcommit b08b829d701dac92e1888195190a022efed058cd[m[33m ([m[1;32mmaster[m[33m)[m
+Author: Felipe Quinteros <fquinteros@TUNNING.CL>
+Date:   Thu Nov 28 08:44:25 2024 -0300
+
+    ya
+
+[33mcommit 81b509ff6210967db2d0663d5ab38dd97d0a6c98[m[33m ([m[1;31morigin/master[m[33m)[m
+Author: Felipe Quinteros <fquinteros@TUNNING.CL>
+Date:   Wed Nov 27 16:07:32 2024 -0300
+
+    Descripción de los cambios
+
+[33mcommit 4fa202e573c6e02db6097dfbb479b15a13a760cd[m[33m ([m[1;31morigin/main[m[33m, [m[1;32mmain[m[33m)[m
+Author: Felipe Quinteros <fquinteros@TUNNING.CL>
+Date:   Wed Nov 27 13:10:40 2024 -0300
+
+    primer commit

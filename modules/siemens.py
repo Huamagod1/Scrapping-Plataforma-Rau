@@ -1,9 +1,74 @@
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 import pandas as pd
 import time
+import pyotp
+
+def login_to_siemens(driver, siemens_link, correo, contrasena, clave_totp):
+    """
+    Realiza el login en la plataforma Siemens.
+    
+    Args:
+        driver (WebDriver): Instancia del navegador.
+        siemens_link (str): URL de la plataforma Siemens.
+        correo (str): Correo del usuario.
+        contrasena (str): Contraseña del usuario.
+        clave_totp (str): Clave secreta para generar el TOTP.
+
+    Returns:
+        bool: True si el login fue exitoso, False en caso contrario.
+    """
+    try:
+        # 1. Navegar al link de Siemens
+        driver.get(siemens_link)
+
+        # 2. Ingresar correo
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.ID, "username"))
+        ).send_keys(correo)
+        WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.NAME, "action"))
+        ).click()
+        print(f"[{correo}] Correo ingresado.")
+
+        # 3. Ingresar contraseña
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.ID, "password"))
+        ).send_keys(contrasena)
+        WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.NAME, "action"))
+        ).click()
+        print(f"[{correo}] Contraseña ingresada.")
+
+        # 4. Generar y usar el código TOTP
+        totp = pyotp.TOTP(clave_totp)
+        codigo_totp = totp.now()  # Generar el código TOTP actual
+        print(f"[{correo}] Código TOTP generado: {codigo_totp}")
+
+        # 5. Ingresar el código TOTP
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.ID, "code"))
+        ).send_keys(codigo_totp)
+        WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.NAME, "action"))
+        ).click()
+        print(f"[{correo}] Código TOTP ingresado.")
+
+        # 6. Verificar si el login fue exitoso
+        WebDriverWait(driver, 35).until(
+            EC.presence_of_element_located((By.CLASS_NAME, "alert-text"))
+        )
+        print(f"[{correo}] Login exitoso.")
+        return True
+
+    except TimeoutException as te:
+        print(f"[{correo}] Error de tiempo de espera al iniciar sesión: {te}")
+        return False
+    except Exception as e:
+        print(f"[{correo}] Error inesperado durante el login: {e}")
+        return False
 
 
 def run_siemens_analysis(driver):
@@ -13,84 +78,54 @@ def run_siemens_analysis(driver):
     Args:
         driver (WebDriver): Instancia del navegador.
     """
-    # Link de Siemens
+    # Configurar rutas
     siemens_link = "https://p-acad.siemens.cloud/"
-    driver.get(siemens_link)
-
-    # Esperar a que la página cargue
-    if not wait_for_element(driver, By.ID, "ContentPlaceHolder1_TextSiemensLogin", 10):
-        print("La página de inicio de sesión no cargó correctamente.")
-        return
-
-    # Leer datos del Excel
     excel_path = r"D:\OneDrive - Tunning Ingenieria SPA\Escritorio\proyecto de automatiacion\Excel datos\Datos P&T Version Actualizada.xlsx"
     output_path = r"./data/results/platforms.xlsx"
+
+    # Leer datos del Excel
     data = pd.read_excel(excel_path, sheet_name="Plan Capacitacion Siemens", header=1)
 
     results = []
 
     for _, row in data.iterrows():
         correo = row['Correo']
-        contrasena = row["Clave Nueva De Acceso"]
-        try:
-            # Login del usuario
-            if not login(driver, correo, contrasena):
-                results.append({"Correo": correo, "Estado": "Login fallido"})
-                continue
+        contrasena = row['Clave Nueva De Acceso']
+        clave_totp = row['Clave TOTP']
 
-            # Navegar a la sección 'Me'
-            if not navigate_to_me(driver):
-                results.append({"Correo": correo, "Estado": "Falló la navegación a 'Me'"})
-                continue
+        # Verificar si falta alguna información
+        if pd.isna(correo) or pd.isna(contrasena) or pd.isna(clave_totp):
+            results.append({"Correo": correo, "Estado": "Faltan datos (correo, contraseña o clave TOTP)"})
+            continue
 
-            # Extraer los cursos en progreso y completados
-            user_courses = extract_courses(driver)
-            results.append({
-                "Correo": correo,
-                "Estado": "Proceso completado",
-                "Cursos en Progreso": user_courses.get("In Progress", []),
-                "Cursos Completados": user_courses.get("Completed", [])
-            })
+        # Llamamos a la nueva función de login
+        login_exitoso = login_to_siemens(driver, siemens_link, correo, contrasena, clave_totp)
 
-            print(f"Usuario {correo} procesado exitosamente.")
-        except Exception as e:
-            print(f"Error inesperado con {correo}: {e}")
-            results.append({"Correo": correo, "Estado": f"Error inesperado: {e}"})
+        if not login_exitoso:
+            # Si el login falla, guardamos el resultado y pasamos al siguiente usuario
+            results.append({"Correo": correo, "Estado": "Login fallido"})
+            continue
 
-        # Pausa opcional entre usuarios
-        time.sleep(5)
+        # Si el login es exitoso, navegamos a "Me"
+        if not navigate_to_me(driver):
+            print(f"[{correo}] Falló la navegación a 'Me'.")
+            results.append({"Correo": correo, "Estado": "Falló la navegación a 'Me'"})
+            continue
+
+        # Extraer los cursos en progreso y completados
+        user_courses = extract_courses(driver)
+        results.append({
+            "Correo": correo,
+            "Estado": "Proceso completado",
+            "Cursos en Progreso": user_courses.get("In Progress", []),
+            "Cursos Completados": user_courses.get("Completed", [])
+        })
+
+        print(f"Usuario {correo} procesado exitosamente.")
+        time.sleep(5)  # Pausa opcional
 
     # Guardar los resultados en un archivo Excel
     save_to_excel(results, output_path)
-
-
-def login(driver, email, password):
-    """
-    Realiza el inicio de sesión en la plataforma.
-
-    Args:
-        driver (WebDriver): Instancia del navegador.
-        email (str): Correo del usuario.
-        password (str): Contraseña del usuario.
-
-    Returns:
-        bool: True si el login fue exitoso, False de lo contrario.
-    """
-    try:
-        driver.find_element(By.ID, "ContentPlaceHolder1_TextSiemensLogin").send_keys(email)
-        driver.find_element(By.ID, "ContentPlaceHolder1_TextPassword").send_keys(password)
-        driver.find_element(By.ID, "ContentPlaceHolder1_LoginUserNamePasswordButton").click()
-
-        # Verificar errores de login
-        if wait_for_element(driver, By.ID, "ContentPlaceHolder1_MessageRepeaterLogin_MessageItemLogin_0", 5):
-            print(f"Error de login para {email}")
-            return False
-
-        print(f"Login exitoso para {email}")
-        return True
-    except Exception as e:
-        print(f"Error durante el login para {email}: {e}")
-        return False
 
 
 def navigate_to_me(driver):
@@ -153,7 +188,7 @@ def extract_courses(driver):
 
 def extract_course_details(driver):
     """
-    Extrae detalles de los cursos de la sección actual.
+    Extrae detalles de los cursos.
 
     Args:
         driver (WebDriver): Instancia del navegador.
@@ -163,58 +198,21 @@ def extract_course_details(driver):
     """
     courses = []
     try:
-        print("Esperando que carguen los elementos de los cursos...")
-        # Esperar a que los elementos estén presentes
-        course_elements = WebDriverWait(driver, 15).until(
-            EC.presence_of_all_elements_located((By.CLASS_NAME, "goalTitleListGoals"))
+        course_elements = WebDriverWait(driver, 10).until(
+            EC.presence_of_all_elements_located((By.CLASS_NAME, "goalTitleListGoals.loc-le-title"))
         )
 
-        print(f"Se encontraron {len(course_elements)} cursos en esta sección.")
-
-        # Iterar sobre cada curso y extraer detalles
-        for index, course in enumerate(course_elements, start=1):
+        for course in course_elements:
             try:
-                # Nombre del curso
                 name = course.text.strip()
-                # Enlace al detalle del curso
                 link = course.get_attribute("href")
-
-                # Debug: Imprimir los detalles del curso
-                print(f"Curso {index}: Nombre: {name}, Enlace: {link}")
-
-                # Agregar a la lista de cursos
                 courses.append({"Nombre": name, "Enlace": link})
-            except Exception as e:
-                print(f"Error al procesar el curso {index}: {e}")
+            except NoSuchElementException:
                 continue
-
     except TimeoutException:
-        print("No se encontraron cursos en esta sección o el tiempo de espera expiró.")
-    except Exception as e:
-        print(f"Error inesperado durante la extracción de cursos: {e}")
+        print("No se encontraron cursos en esta sección.")
 
-    # Devolver la lista de cursos
     return courses
-
-
-
-def wait_for_element(driver, by, identifier, timeout):
-    """
-    Espera a que un elemento esté presente.
-
-    Args:
-        driver (WebDriver): Instancia del navegador.
-        by (By): Tipo de localizador (e.g., By.ID, By.XPATH).
-        identifier (str): Identificador del elemento.
-        timeout (int): Tiempo máximo de espera.
-
-    Returns:
-        WebElement: El elemento encontrado, o None si no se encuentra.
-    """
-    try:
-        return WebDriverWait(driver, timeout).until(EC.presence_of_element_located((by, identifier)))
-    except TimeoutException:
-        return None
 
 
 def save_to_excel(data, file_path):
