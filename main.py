@@ -5,7 +5,7 @@ def main():
     Ejecuta el análisis para la plataforma seleccionada.
     Cambia 'RAU' por la plataforma que deseas analizar.
     """
-    platform = "Cisco"  # Cambiar a 'Siemens', 'Cisco', 'Honeywell' según sea necesario
+    platform = "Siemens"  # Cambiar a 'Siemens', 'Cisco', 'Honeywell' según sea necesario
     execute_platform_analysis(platform)
 
 if __name__ == "__main__":

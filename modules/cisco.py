@@ -51,7 +51,7 @@ def run_cisco_analysis(driver):
                 continue
 
             # Verificar y manejar la pantalla "Finish Logging In"
-            handle_finish_logging_in(driver)
+            #handle_finish_logging_in(driver)
 
             # Navegar al menú y seleccionar "My Learning"
             if not navigate_to_my_learning(driver):
