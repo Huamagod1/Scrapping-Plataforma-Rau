@@ -262,39 +262,63 @@ def extraccion_datos(driver, nombre_itinerario):
     """
         Primero siempre tenemos que hacer click a la vista general del curso. Esto se hace haciendo click en el nombre del itinerario una vez dentro.
 
+        Se tiene que identificar el porcentaje de avance del itinerario y si no se encuentra el % de avance se tiene que realizar el calculo;
+        Tenemos que identificar la cantidad de modulos que hay por itinerario y de estos realizar el calculo del porcentaje
+        
 
-     Tenemos que identificar la cantidad de modulos que hay por itinerario y de estos realizar el calculo del porcentaje
-     si en la pagina no hay algun porcentaje que indique el avance del especialista.
+        
 
-    Patron del id de los modulos de un curso: _zl0o_c. De otro itinerario y el primero modulo: _zl0o_c, _zl1o_c
+        Patron del id de los modulos de un curso: _zl0o_c. De otro itinerario y el primero modulo: _zl0o_c, _zl1o_c
 
-    Antes de acceder tenemos un id igual:  esto esta en un div _zl0o_w
+        Antes de acceder tenemos un id igual:  esto esta en un div _zl0o_w
 
-    Patron del dato "Terminado" span: _zl0obc, _zl1obc
-    Patron del dato "Min. Obligatorio" span: _zl0obh ,_zl1obh
-    Patro del dato "Cursos totales" span: _zl0obm, _zl1obm
-
-
-    Curso con porcentaje: 
-
-    Para los cursos con el porcentaje, necesito encotrar un patron para que se extraiga el dato:
-    Patron del curso "Customer Training: Studio 5000 Logix Designer Level 1: ControlLogix System Fundamentals (CCP146)"
+        Patron del dato "Terminado" span: _zl0obc, _zl1obc
+        Patron del dato "Min. Obligatorio" span: _zl0obh ,_zl1obh
+        Patro del dato "Cursos totales" span: _zl0obm, _zl1obm
 
 
-     """
-    vista_gnral_itinerario = WebDriverWait(driver,15).until(
-         EC.element_to_be_clickable((By.ID,"_ra_w"))
-    )
+        Curso con porcentaje: 
 
-    vista_gnral_itinerario.click()
-    print(f"Se hizo clic en el itinerario '{nombre_itinerario}' para acceder a la vista general.")
+        Para los cursos con el porcentaje, necesito encotrar un patron para que se extraiga el dato:
+        Patron del curso "Customer Training: Studio 5000 Logix Designer Level 1: ControlLogix System Fundamentals (CCP146)"
 
-     # Espera a que la página termine de cargar
-    WebDriverWait(driver, 15).until(
-            lambda d: d.execute_script("return document.readyState") == "complete"
-    )
-    print("La vista general de los cursos/módulos cargó completamente.")
-    
+
+    """
+
+    try:
+        #Hace clic en el nombre del itinerario el id es _ra_w
+         
+        vista_gnral_itinerario = WebDriverWait(driver,15).until(
+            EC.element_to_be_clickable((By.ID,"_ra_w"))
+        )
+
+        vista_gnral_itinerario.click()
+        print(f"Se hizo clic en el itinerario '{nombre_itinerario}' para acceder a la vista general de todos los modulos.")
+
+        # Espera a que la página termine de cargar
+        WebDriverWait(driver, 15).until(
+                lambda d: d.execute_script("return document.readyState") == "complete"
+        )
+        print("La vista general de los cursos/módulos cargó completamente.")
+        
+
+       try:
+        porcentaje_elemento = WebDriverWait(driver,19).until(
+             EC.presence_of_element_located((By.CSS_SELECTOR, "div.percentage > span"))
+        )
+
+        porcentaje_elemento = porcentaje_elemento.text.strip() #Extrae el texto del <span> dentro del div.percentage
+        print(f"Porcentja de avance encontrado: {porcentaje}%")
+       
+       except:
+         
+
+
+
+
+
+    except:
+         print("No se pudo acceder a la vista general del itinerario")
 
 
 
