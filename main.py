@@ -19,6 +19,7 @@ service = Service(chrome_driver_path)
 driver = webdriver.Chrome(service=service)
 
 
+
 try:
     # Realiza el inicio de sesión
     login(driver, config)
