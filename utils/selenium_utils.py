@@ -1,6 +1,5 @@
 from selenium import webdriver
 from selenium.webdriver.edge.service import Service
-from modules.rau import run_rau_analysis
 from modules.siemens import run_siemens_analysis
 from modules.cisco import run_cisco_analysis
 """from modules.honeywell import run_honeywell_analysis"""
