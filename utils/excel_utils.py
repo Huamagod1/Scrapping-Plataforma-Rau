@@ -27,3 +27,15 @@ def write_excel(dataframe, file_path):
         file_path (str): Ruta del archivo de salida.
     """
     dataframe.to_excel(file_path, index=False)
+
+
+def save_to_excel(data, file_path):
+    """
+    Guarda los resultados de la extracción en un archivo Excel.
+    """
+    try:
+        df = pd.DataFrame(data)
+        df.to_excel(file_path, index=False)
+        print(f"✅ Resultados guardados en {file_path}")
+    except Exception as e:
+        print(f"❌ Error al guardar en Excel: {e}")

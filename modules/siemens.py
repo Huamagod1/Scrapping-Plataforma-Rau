@@ -2,8 +2,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
-from selenium import webdriver
-import pandas as pd
+
 import time
 import pyotp
 
@@ -58,81 +57,6 @@ def login_to_siemens(driver, siemens_link, correo, contrasena, clave_totp):
     except Exception as e:
         print(f"[{correo}] Error inesperado durante el inicio de sesión: {e}")
         return False
-
-
-def run_siemens_analysis(driver):
-    """
-    Ejecuta el análisis de capacitación en Siemens para cada usuario.
-    - Carga datos del Excel
-    - Inicia sesión
-    - Navega a 'Me'
-    - Verifica cursos (o ausencia)
-    - Extrae información
-    - Guarda resultados
-    """
-    siemens_link = "https://p-acad.siemens.cloud/"
-    excel_path = r"D:\OneDrive - Tunning Ingenieria SPA\Escritorio\proyecto de automatiacion\Excel datos\Datos P&T Version Actualizada.xlsx"
-    output_path = r"./data/results/platforms.xlsx"
-
-    data = pd.read_excel(excel_path, sheet_name="Plan Capacitacion Siemens", header=1)
-    results = []
-
-    for _, row in data.iterrows():
-        correo = row['Correo']
-        contrasena = row['Clave Nueva De Acceso']
-        clave_totp = row['Clave TOTP']
-
-        if pd.isna(correo) or pd.isna(contrasena) or pd.isna(clave_totp):
-            results.append({"Correo": correo, "Estado": "Faltan datos"})
-            continue
-
-        # Iniciar una nueva instancia del navegador para cada usuario
-        driver = webdriver.Edge()
-        driver.maximize_window()
-
-        try:
-            # 1) Login
-            login_exitoso = login_to_siemens(driver, siemens_link, correo, contrasena, clave_totp)
-            if not login_exitoso:
-                results.append({"Correo": correo, "Estado": "Login fallido"})
-                continue
-
-            # 2) Navegar a 'Me'
-            if not navigate_to_me(driver):
-                print(f"[{correo}] Falló la navegación a la sección 'Me'.")
-                results.append({"Correo": correo, "Estado": "Falló la navegación a 'Me'"})
-                continue
-
-            # 3) Verificar si no tiene cursos asignados
-            if check_no_courses(driver):
-                print(f"[{correo}] No tiene cursos asignados.")
-                results.append({"Correo": correo, "Estado": "Sin cursos asignados"})
-                continue
-
-            # 4) Extraer cursos (en progreso y completados)
-            user_courses = extract_courses(driver)
-            results.append({
-                "Correo": correo,
-                "Estado": "Proceso completado",
-                "Cursos en Progreso": user_courses.get("In Progress", []),
-                "Cursos Completados": user_courses.get("Completed", [])
-            })
-
-            print(f"✅ Usuario {correo} procesado exitosamente.")
-
-        except Exception as e:
-            print(f"❌ Error inesperado con el usuario {correo}: {e}")
-            results.append({"Correo": correo, "Estado": "Error inesperado"})
-
-        finally:
-            driver.quit()
-            print(f"🔄 Navegador cerrado para {correo}.")
-
-        time.sleep(5)  # Pausa antes de procesar el siguiente usuario
-
-    save_to_excel(results, output_path)
-    print("📂 Resultados guardados correctamente.")
-
 
 def navigate_to_me(driver):
     """
@@ -232,12 +156,17 @@ def apply_completed_filter(driver, timeout=10):
 def extract_courses(driver):
     """
     Extrae la lista de cursos 'In Progress' y 'Completed'.
+    También obtiene el porcentaje de avance de los cursos en progreso.
     """
-    courses = {"In Progress": [], "Completed": []}
+    courses = {"In Progress": [], "Completed": [], "Progress Percentage": {}}
 
     print("🟩 Extrayendo cursos EN PROGRESO...")
     # 1) Cursos en progreso
     courses["In Progress"] = extract_course_details(driver)
+
+    if courses["In Progress"]:
+        print("📊 Calculando porcentajes de progreso...")
+        courses["Progress Percentage"] = extract_course_progress(driver)  # Nueva función
 
     # 2) Refrescar y aplicar filtro 'Completed'
     driver.refresh()
@@ -333,13 +262,57 @@ def extract_course_details(driver, timeout=20):
     return courses
 
 
-def save_to_excel(data, file_path):
+def extract_course_progress(driver):
     """
-    Guarda los resultados de la extracción en un archivo Excel.
+    Extrae el porcentaje de progreso de cada curso en proceso.
+    - Ingresa a cada curso en progreso.
+    - Obtiene el total de actividades del curso.
+    - Cuenta cuántas actividades han sido completadas.
+    - Calcula el porcentaje de avance.
+    - Regresa a la lista de cursos.
+    
+    Parámetros:
+    - driver: Instancia del navegador Selenium.
+
+    Retorna:
+    - Un diccionario con los nombres de los cursos y sus respectivos porcentajes de progreso.
     """
-    try:
-        df = pd.DataFrame(data)
-        df.to_excel(file_path, index=False)
-        print(f"✅ Resultados guardados en {file_path}")
-    except Exception as e:
-        print(f"❌ Error al guardar en Excel: {e}")
+    progress_data = {}
+
+    # Encontrar todos los cursos en progreso
+    courses = driver.find_elements(By.CSS_SELECTOR, "td.x-grid-cell-headerId-Title a.goalTitleListGoals.loc-le-title")
+    
+    for course in courses:
+        try:
+            course_name = course.text.strip()
+            print(f"➡ Ingresando al curso: {course_name}")
+
+            # Abrimos el curso en una nueva pestaña
+            driver.execute_script("window.open(arguments[0]);", course.get_attribute("href"))
+            driver.switch_to.window(driver.window_handles[-1])  # Cambiamos a la nueva pestaña
+            
+            time.sleep(3)  # Esperar carga de la página
+
+            # Extraer el total de actividades del curso
+            total_activities = len(driver.find_elements(By.CSS_SELECTOR, ".activity-item"))  # Ajustar selector
+            completed_activities = len(driver.find_elements(By.CSS_SELECTOR, ".activity-completed"))  # Ajustar selector
+            
+            if total_activities > 0:
+                progress_percentage = (completed_activities / total_activities) * 100
+            else:
+                progress_percentage = 0  # Si no tiene actividades, el progreso es 0
+
+            progress_data[course_name] = round(progress_percentage, 2)
+            print(f"✅ {course_name}: {progress_percentage:.2f}% completado.")
+
+        except Exception as e:
+            print(f"❌ Error al procesar el curso {course_name}: {e}")
+            progress_data[course_name] = "Error"
+
+        finally:
+            # Cerrar la pestaña actual y regresar a la lista de cursos
+            driver.close()
+            driver.switch_to.window(driver.window_handles[0])
+            time.sleep(2)  # Breve pausa antes del siguiente curso
+
+    return progress_data
