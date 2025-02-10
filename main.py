@@ -1,41 +1,40 @@
-from modules.siemens import login_to_siemens
-from modules.siemens import navigate_to_me
-from modules.siemens import check_no_courses
-from modules.siemens import extract_courses
+from modules.siemens import login_to_siemens, navigate_to_me, check_no_courses, extract_courses
 from utils.excel_utils import save_to_excel
 from selenium import webdriver
 import pandas as pd
 import time
 
-def run_siemens_analysis(driver):
-    """
-    Ejecuta el análisis de capacitación en Siemens para cada usuario.
-    - Carga datos del Excel
-    - Inicia sesión
-    - Navega a 'Me'
-    - Verifica cursos (o ausencia)
-    - Extrae información
-    - Guarda resultados
-    """
+def run_siemens_analysis():
+
     siemens_link = "https://p-acad.siemens.cloud/"
     excel_path = r"D:\OneDrive - Tunning Ingenieria SPA\Escritorio\proyecto de automatiacion\Excel datos\Datos P&T Version Actualizada.xlsx"
     output_path = r"./data/results/platforms.xlsx"
 
-    data = pd.read_excel(excel_path, sheet_name="Plan Capacitacion Siemens", header=1)
+    try:
+        data = pd.read_excel(excel_path, sheet_name="Plan Capacitacion Siemens", header=1)
+    except Exception as e:
+        print(f"❌ Error al leer el archivo Excel: {e}")
+        return
+
     results = []
 
     for _, row in data.iterrows():
-        correo = row['Correo']
-        contrasena = row['Clave Nueva De Acceso']
-        clave_totp = row['Clave TOTP']
+        correo = row.get('Correo')
+        contrasena = row.get('Clave Nueva De Acceso')
+        clave_totp = row.get('Clave TOTP')
 
         if pd.isna(correo) or pd.isna(contrasena) or pd.isna(clave_totp):
             results.append({"Correo": correo, "Estado": "Faltan datos"})
             continue
 
-        # Iniciar una nueva instancia del navegador para cada usuario
-        driver = webdriver.Edge()
-        driver.maximize_window()
+        # Intentar inicializar el navegador
+        try:
+            driver = webdriver.Edge()
+            driver.maximize_window()
+        except Exception as e:
+            print(f"❌ Error al iniciar el navegador: {e}")
+            results.append({"Correo": correo, "Estado": "Error iniciando navegador"})
+            continue
 
         try:
             # 1) Login
@@ -77,11 +76,15 @@ def run_siemens_analysis(driver):
 
         time.sleep(5)  # Pausa antes de procesar el siguiente usuario
 
-    save_to_excel(results, output_path)
-    print("📂 Resultados guardados correctamente.")
+    # Guardar resultados en Excel
+    try:
+        save_to_excel(results, output_path)
+        print("📂 Resultados guardados correctamente.")
+    except Exception as e:
+        print(f"❌ Error al guardar resultados en Excel: {e}")
+
 def main():
-    # Solo Siemens por ahora
-    driver = None  # si no lo necesitas en main
-    run_siemens_analysis(driver)
+    run_siemens_analysis()
 
-
+if __name__ == "__main__":
+    main()

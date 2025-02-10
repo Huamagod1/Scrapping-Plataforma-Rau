@@ -2,7 +2,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
-
 import time
 import pyotp
 
@@ -31,11 +30,10 @@ def login_to_siemens(driver, siemens_link, correo, contrasena, clave_totp):
         ).click()
         print(f"[{correo}] Contraseña ingresada correctamente.")
 
-        # Generar y ingresar el código TOTP
+        # Generar y enviar el código TOTP
         totp = pyotp.TOTP(clave_totp)
         codigo_totp = totp.now()
         print(f"[{correo}] Código TOTP generado: {codigo_totp}")
-
         WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.ID, "code"))
         ).send_keys(codigo_totp)
@@ -44,7 +42,7 @@ def login_to_siemens(driver, siemens_link, correo, contrasena, clave_totp):
         ).click()
         print(f"[{correo}] Código TOTP ingresado correctamente.")
 
-        # Esperar un indicador de inicio de sesión exitoso
+        # Esperar indicador de inicio de sesión exitoso
         WebDriverWait(driver, 35).until(
             EC.presence_of_element_located((By.CLASS_NAME, "alert-text"))
         )
@@ -57,6 +55,7 @@ def login_to_siemens(driver, siemens_link, correo, contrasena, clave_totp):
     except Exception as e:
         print(f"[{correo}] Error inesperado durante el inicio de sesión: {e}")
         return False
+
 
 def navigate_to_me(driver):
     """
@@ -81,16 +80,13 @@ def navigate_to_me(driver):
 def check_no_courses(driver, timeout=10):
     """
     Verifica si aparece el mensaje 'Plan does not have any items.' dentro de un iframe.
-    Retorna True si no hay cursos. De lo contrario, False.
+    Retorna True si no hay cursos; de lo contrario, False.
     """
     try:
-        # Esperar que aparezca el iframe y cambiar el contexto
         iframe = WebDriverWait(driver, timeout).until(
             EC.presence_of_element_located((By.TAG_NAME, "iframe"))
         )
         driver.switch_to.frame(iframe)
-
-        # Buscar el texto 'Plan does not have any items.'
         WebDriverWait(driver, timeout).until(
             EC.presence_of_element_located(
                 (By.XPATH, "//*[contains(text(), 'Plan does not have any items.')]")
@@ -98,13 +94,10 @@ def check_no_courses(driver, timeout=10):
         )
         print("✅ Mensaje 'Plan does not have any items.' encontrado => Sin cursos.")
         return True
-
     except (TimeoutException, NoSuchElementException):
-        print("✅ No se encontró mensaje de 'Plan does not have any items.', sí hay cursos.")
+        print("✅ No se encontró el mensaje, sí hay cursos.")
         return False
-
     finally:
-        # Volver siempre al contexto principal
         driver.switch_to.default_content()
 
 
@@ -112,9 +105,9 @@ def apply_completed_filter(driver, timeout=10):
     """
     Aplica el filtro 'Completed' dentro del iframe.
     Retorna:
-        - "NO_COURSES" si sale 'No data available for the selected filter'
-        - "COURSES_FOUND" si se listan cursos
-        - "ERROR" para cualquier problema inesperado
+      - "NO_COURSES" si sale 'No data available for the selected filter'
+      - "COURSES_FOUND" si se listan cursos
+      - "ERROR" en caso de algún problema
     """
     try:
         iframe = WebDriverWait(driver, timeout).until(
@@ -122,7 +115,6 @@ def apply_completed_filter(driver, timeout=10):
         )
         driver.switch_to.frame(iframe)
         print("🔄 Cambiado al contexto del iframe para aplicar 'Completed'.")
-
         completed_span = WebDriverWait(driver, timeout).until(
             EC.presence_of_element_located(
                 (By.XPATH, "//span[@class='sjs-legend-text' and text()='Completed']")
@@ -130,70 +122,30 @@ def apply_completed_filter(driver, timeout=10):
         )
         completed_span.click()
         print("🎯 Filtro 'Completed' activado.")
-
-        # Esperar un momento a que la tabla se actualice
         time.sleep(3)
-
-        # Verificar si aparece 'No data available for the selected filter'
         no_data = driver.find_elements(
             By.XPATH, "//*[contains(text(), 'No data available for the selected filter')]"
         )
         driver.switch_to.default_content()
-
         if no_data:
             print("⚠ No hay cursos completados.")
             return "NO_COURSES"
         else:
             print("✅ Hay cursos completados.")
             return "COURSES_FOUND"
-
     except Exception as e:
         print(f"❌ Error en apply_completed_filter: {e}")
         driver.switch_to.default_content()
         return "ERROR"
 
 
-def extract_courses(driver):
-    """
-    Extrae la lista de cursos 'In Progress' y 'Completed'.
-    También obtiene el porcentaje de avance de los cursos en progreso.
-    """
-    courses = {"In Progress": [], "Completed": [], "Progress Percentage": {}}
-
-    print("🟩 Extrayendo cursos EN PROGRESO...")
-    # 1) Cursos en progreso
-    courses["In Progress"] = extract_course_details(driver)
-
-    if courses["In Progress"]:
-        print("📊 Calculando porcentajes de progreso...")
-        courses["Progress Percentage"] = extract_course_progress(driver)  # Nueva función
-
-    # 2) Refrescar y aplicar filtro 'Completed'
-    driver.refresh()
-    time.sleep(5)  # Espera un poco a que la página se recargue
-    filter_result = apply_completed_filter(driver)
-
-    if filter_result == "COURSES_FOUND":
-        print("🟦 Extrayendo cursos COMPLETADOS...")
-        courses["Completed"] = extract_course_details(driver)
-    elif filter_result == "NO_COURSES":
-        print("⚠ No hay cursos completados para este usuario.")
-        # Deja la lista 'Completed' vacía
-    else:
-        print("⚠ Error al aplicar filtro 'Completed', no se extraerán cursos completados.")
-
-    return courses
-
-
 def extract_course_details(driver, timeout=20):
     """
-    Busca la tabla en el iframe y extrae la lista de cursos (nombre, estado).
+    Busca la tabla en el iframe y extrae la lista de cursos (nombre y estado).
     """
     courses = []
     print("⌛ Buscando la tabla de cursos...")
-
     try:
-        # 1) Ubicar el iframe principal donde está la tabla
         iframes = driver.find_elements(By.TAG_NAME, "iframe")
         if iframes:
             print(f"🔍 Se encontraron {len(iframes)} iframes.")
@@ -201,25 +153,19 @@ def extract_course_details(driver, timeout=20):
                 try:
                     driver.switch_to.frame(iframe)
                     print(f"✅ Cambiando al iframe {index+1} para buscar la tabla...")
-
-                    # Ver si existe un tbody con la tabla de cursos
-                    tbody_candidate = driver.find_elements(By.TAG_NAME, "tbody")
-                    if tbody_candidate:
-                        print(f"🎯 ¡Encontrados {len(tbody_candidate)} tbodys en iframe {index+1}!")
+                    tbody_candidates = driver.find_elements(By.TAG_NAME, "tbody")
+                    if tbody_candidates:
+                        print(f"🎯 ¡Encontrados {len(tbody_candidates)} tbodys en iframe {index+1}!")
                         break
                 except NoSuchElementException:
                     print(f"❌ No se encontró tabla en iframe {index+1}, probando siguiente...")
                     driver.switch_to.default_content()
-
-        time.sleep(2)  # Pequeña espera para asegurar que se renderice
-
-        # 2) Localizar el tbody final
+        time.sleep(2)
         try:
             tbody = driver.find_element(By.CSS_SELECTOR, "tbody#sjsgridview-1041-body")
         except NoSuchElementException:
             print("⚠ No se encontró 'sjsgridview-1041-body', buscando con un selector alternativo...")
             tbody = driver.find_element(By.CSS_SELECTOR, "tbody[id^='gridview']")
-
         print("✅ ¡Tabla de cursos encontrada!")
         rows = WebDriverWait(driver, timeout).until(
             EC.presence_of_all_elements_located((By.CSS_SELECTOR, "tbody tr.x-grid-row"))
@@ -228,91 +174,180 @@ def extract_course_details(driver, timeout=20):
             print("⚠ No se encontraron filas de cursos.")
             driver.save_screenshot("error_no_cursos.png")
             return []
-
         print(f"📌 Se encontraron {len(rows)} filas de cursos.")
-
-        # 3) Extraer campos (nombre y estado)
         for i, row in enumerate(rows, start=1):
             try:
                 title_anchor = row.find_element(
                     By.CSS_SELECTOR, "td.x-grid-cell-headerId-Title a.goalTitleListGoals.loc-le-title"
                 )
                 name = title_anchor.text.strip() if title_anchor else "(Sin nombre)"
-
                 progress_el = row.find_element(
                     By.CSS_SELECTOR, "td.x-grid-cell-headerId-Progress span b"
                 )
                 progress = progress_el.text.strip() if progress_el else "(Desconocido)"
-
                 courses.append({"Nombre": name, "Estado": progress})
                 print(f"✅ [{i}] Curso: {name} | Estado: {progress}")
-
             except NoSuchElementException as e:
                 print(f"⚠ [{i}] Error extrayendo datos de la fila: {e}")
-
     except TimeoutException:
         print("❌ La tabla no cargó dentro del tiempo límite.")
         driver.save_screenshot("error_timeout_tabla.png")
     except Exception as e:
         print(f"❌ Error inesperado: {e}")
     finally:
-        # Regresar al main content
         driver.switch_to.default_content()
-
     return courses
 
 
 def extract_course_progress(driver):
     """
     Extrae el porcentaje de progreso de cada curso en proceso.
-    - Ingresa a cada curso en progreso.
-    - Obtiene el total de actividades del curso.
-    - Cuenta cuántas actividades han sido completadas.
+    - Primero obtiene todos los enlaces de los cursos en progreso.
+    - Usa una pestaña fija para cambiar de curso.
+    - Interactúa con el botón "Load More" si es necesario.
+    - Extrae los nombres y estados de las actividades.
     - Calcula el porcentaje de avance.
-    - Regresa a la lista de cursos.
-    
-    Parámetros:
-    - driver: Instancia del navegador Selenium.
-
-    Retorna:
-    - Un diccionario con los nombres de los cursos y sus respectivos porcentajes de progreso.
+    - Al terminar todos los cursos, cierra la pestaña y regresa a "Me".
     """
     progress_data = {}
 
-    # Encontrar todos los cursos en progreso
+    print("📌 Detectando cursos en progreso...")
+
+    # Intentar obtener los cursos dentro de un `iframe`
+    try:
+        iframe = driver.find_element(By.TAG_NAME, "iframe")
+        driver.switch_to.frame(iframe)
+        print("✅ Iframe encontrado, extrayendo cursos dentro del iframe.")
+    except NoSuchElementException:
+        print("ℹ️ No se encontró un iframe, usando documento principal.")
+
+    # 🔹 Extraer TODOS los enlaces de los cursos en progreso antes de abrir una nueva pestaña
     courses = driver.find_elements(By.CSS_SELECTOR, "td.x-grid-cell-headerId-Title a.goalTitleListGoals.loc-le-title")
-    
-    for course in courses:
+
+    if not courses:
+        print("⚠ No se encontraron cursos en progreso.")
+        return progress_data
+
+    course_links = [(course.text.strip(), course.get_attribute("href")) for course in courses]
+    print(f"📚 Se encontraron {len(course_links)} cursos en progreso.")
+
+    # Volver al contenido principal si se usó un `iframe`
+    try:
+        driver.switch_to.default_content()
+    except Exception:
+        pass
+
+    # ✅ Abrir una nueva pestaña para procesar los cursos
+    driver.execute_script("window.open('', '_blank');")
+    time.sleep(2)
+
+    original_window = driver.current_window_handle  # Guardar la ventana principal
+    new_window = [window for window in driver.window_handles if window != original_window][0]
+    driver.switch_to.window(new_window)  # Cambiar a la pestaña procesadora
+
+    for index, (course_name, course_url) in enumerate(course_links):
+        print(f"➡ Ingresando al curso {index + 1}: {course_name} ({course_url})")
+
         try:
-            course_name = course.text.strip()
-            print(f"➡ Ingresando al curso: {course_name}")
+            # 🔹 Cambiar la URL de la pestaña en lugar de abrir una nueva
+            driver.get(course_url)
 
-            # Abrimos el curso en una nueva pestaña
-            driver.execute_script("window.open(arguments[0]);", course.get_attribute("href"))
-            driver.switch_to.window(driver.window_handles[-1])  # Cambiamos a la nueva pestaña
-            
-            time.sleep(3)  # Esperar carga de la página
+            # Esperar a que la página del curso cargue completamente
+            WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+            print(f"✅ Página del curso {course_name} cargada.")
 
-            # Extraer el total de actividades del curso
-            total_activities = len(driver.find_elements(By.CSS_SELECTOR, ".activity-item"))  # Ajustar selector
-            completed_activities = len(driver.find_elements(By.CSS_SELECTOR, ".activity-completed"))  # Ajustar selector
-            
-            if total_activities > 0:
-                progress_percentage = (completed_activities / total_activities) * 100
-            else:
-                progress_percentage = 0  # Si no tiene actividades, el progreso es 0
+            time.sleep(3)  # Breve pausa para evitar errores de carga
 
-            progress_data[course_name] = round(progress_percentage, 2)
-            print(f"✅ {course_name}: {progress_percentage:.2f}% completado.")
+            # 🔹 Manejo de doble vía: Intentar con iframe primero, luego documento principal
+            try:
+                iframe = driver.find_element(By.TAG_NAME, "iframe")
+                driver.switch_to.frame(iframe)
+                print("✅ Iframe encontrado en el curso.")
+            except NoSuchElementException:
+                print("ℹ️ No se encontró iframe, usando documento actual.")
+
+            # Esperar a que las actividades estén visibles
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_all_elements_located((By.CSS_SELECTOR, ".activity--detail__bold-text"))
+            )
+
+            # 🔄 Si existe botón "Load More", hacer clic hasta que desaparezca
+            while True:
+                try:
+                    botonLoadMore = WebDriverWait(driver, 5).until(
+                        EC.presence_of_element_located((By.ID, "Learning-assignment-loading-button"))
+                    )
+                    if botonLoadMore and botonLoadMore.is_displayed():
+                        print("🔄 Cargando más actividades...")
+                        botonLoadMore.click()
+                        time.sleep(3)
+                    else:
+                        break
+                except TimeoutException:
+                    break
+
+            print("✅ Todas las actividades cargadas.")
+            time.sleep(2)
+
+            # Extraer nombres y estados de las actividades
+            actividad_elements = driver.find_elements(By.CSS_SELECTOR, ".activity--detail__bold-text")
+            estado_elements = driver.find_elements(By.CSS_SELECTOR, ".activity--detail__status span")
+
+            nombres = [el.text.strip() for el in actividad_elements]
+            estados = [el.text.strip() for el in estado_elements]
+
+            completadas = sum(1 for s in estados if s == "Completed")
+            total = len(nombres)
+            progreso = (completadas / total) * 100 if total > 0 else 0
+
+            progress_data[course_name] = round(progreso, 2)
+            print(f"✅ {course_name}: {completadas} / {total} actividades completadas.")
+            print(f"📊 Progreso: {progreso:.2f}%")
+
+            # Volver al contenido principal si se usó un `iframe`
+            try:
+                driver.switch_to.default_content()
+            except Exception:
+                pass
 
         except Exception as e:
             print(f"❌ Error al procesar el curso {course_name}: {e}")
             progress_data[course_name] = "Error"
 
-        finally:
-            # Cerrar la pestaña actual y regresar a la lista de cursos
-            driver.close()
-            driver.switch_to.window(driver.window_handles[0])
-            time.sleep(2)  # Breve pausa antes del siguiente curso
+    # 🔹 Cerrar la pestaña procesadora al terminar todos los cursos en progreso
+    driver.close()
+    driver.switch_to.window(original_window)
+    time.sleep(2)
 
     return progress_data
+
+
+
+def extract_courses(driver):
+    """
+    Extrae la lista de cursos 'In Progress' y 'Completed' y calcula los porcentajes de avance
+    para los cursos en progreso.
+    """
+    courses = {"In Progress": [], "Completed": [], "Progress Percentage": {}}
+
+    print("🟩 Extrayendo cursos EN PROGRESO...")
+    courses["In Progress"] = extract_course_details(driver)
+
+    if courses["In Progress"]:
+        print("📊 Calculando porcentajes de progreso para cursos en proceso...")
+        courses["Progress Percentage"] = extract_course_progress(driver)
+
+    driver.refresh()
+    time.sleep(5)
+
+    filter_result = apply_completed_filter(driver)
+
+    if filter_result == "COURSES_FOUND":
+        print("🟦 Extrayendo cursos COMPLETADOS...")
+        courses["Completed"] = extract_course_details(driver)
+    elif filter_result == "NO_COURSES":
+        print("⚠ No hay cursos completados para este usuario.")
+    else:
+        print("⚠ Error al aplicar filtro 'Completed', no se extraerán cursos completados.")
+
+    return courses
